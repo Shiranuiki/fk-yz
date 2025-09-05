@@ -68,19 +68,44 @@ foreach ($dependencies as $dep) {
 ?>
 
 <?php if ($needsInstall): ?>
-<form method="POST" class="mt-4">
-    <div class="alert alert-warning alert-modern">
-        <i class="bi bi-exclamation-triangle me-2"></i>
-        <strong>发现缺失的依赖！</strong> 
-        点击下方按钮自动安装缺失的依赖项。
+<div class="alert alert-warning alert-modern mt-4">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <strong>发现缺失的依赖！</strong> 
+    请按照下方步骤手动安装依赖后刷新页面。
+</div>
+
+<div class="alert alert-info alert-modern">
+    <h6><i class="bi bi-terminal me-2"></i>安装步骤</h6>
+    <ol class="mb-2">
+        <li>使用SSH或服务器面板的终端功能</li>
+        <li>进入项目根目录</li>
+        <li>执行安装命令</li>
+        <li>刷新此页面检查结果</li>
+    </ol>
+    
+    <div class="bg-dark text-light p-3 rounded mt-3" style="font-family: 'Courier New', monospace;">
+        <div class="text-warning"># 宝塔面板用户</div>
+        <div>cd /www/wwwroot/your-site</div>
+        <div>composer install --no-dev --optimize-autoloader</div>
+        
+        <div class="text-warning mt-3"># PHPStudy用户</div>
+        <div>cd F:\phpstudy_pro\WWW\your-site</div>
+        <div>composer install --no-dev --optimize-autoloader</div>
+        
+        <div class="text-warning mt-3"># 如果提示composer命令不存在</div>
+        <div>curl -sS https://getcomposer.org/installer | php</div>
+        <div>php composer.phar install --no-dev --optimize-autoloader</div>
+        
+        <div class="text-success mt-3"># 安装完成后检查vendor目录</div>
+        <div>ls -la vendor/</div>
     </div>
     
-    <div class="text-center">
-        <button type="submit" class="btn btn-warning btn-modern btn-lg">
-            <i class="bi bi-download me-2"></i>安装依赖
+    <div class="text-center mt-3">
+        <button onclick="window.location.reload()" class="btn btn-primary btn-modern">
+            <i class="bi bi-arrow-clockwise me-2"></i>刷新检查结果
         </button>
     </div>
-</form>
+</div>
 <?php else: ?>
 <div class="alert alert-success alert-modern mt-4">
     <i class="bi bi-check-circle me-2"></i>

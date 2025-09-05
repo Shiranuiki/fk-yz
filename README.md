@@ -102,11 +102,11 @@
 
 ## 🚀 快速部署
 
-### 一键部署（堡塔面板推荐）
+### ⚡ 一键部署（宝塔/PHPStudy推荐）
 
 1. **创建站点**
    ```bash
-   # 在堡塔面板中创建新站点
+   # 在控制面板中创建新站点
    # 域名：your-domain.com
    # 根目录：/www/wwwroot/your-site
    # PHP版本：8.1+
@@ -119,13 +119,30 @@
    # 上传或克隆项目代码
    ```
 
-3. **设置运行目录**
+3. **🚨 重要：设置Web服务器DocumentRoot**
    ```bash
-   # 安装阶段：运行目录设为根目录 /
-   # 安装完成后：运行目录改为 /public
+   # 关键步骤：将网站运行目录设置为 public 文件夹
+   
+   # 方法1: 宝塔面板
+   # 网站设置 → 网站目录 → 运行目录 → 选择 /public
+   
+   # 方法2: PHPStudy
+   # 虚拟主机 → 域名管理 → 修改 → 网站目录指向 public 文件夹
+   
+   # 方法3: 手动配置 Apache/Nginx
+   # DocumentRoot "/path/to/your-site/public"
    ```
 
-4. **执行安装**
+4. **访问安装向导**
+   ```
+   http://your-domain.com/install.php
+   ```
+   
+   ⚠️ **如果遇到"重定向次数过多"错误：**
+   - 检查 DocumentRoot 是否正确设置为 `public` 目录
+   - 删除 `config/installed.lock` 文件（如需重新安装）
+
+5. **按照向导完成安装**
    ```bash
    # 访问：http://your-domain.com/install.php
    # 按照向导完成安装配置
@@ -221,9 +238,9 @@ chown -R www:www /www/wwwroot/your-site
 find /www/wwwroot/your-site -type d -exec chmod 755 {} \;
 find /www/wwwroot/your-site -type f -exec chmod 644 {} \;
 
-# 设置可写目录
-chmod -R 777 /www/wwwroot/your-site/storage
-chmod -R 777 /www/wwwroot/your-site/config
+# 设置存储目录权限（755足够，避免使用777）
+chmod -R 755 /www/wwwroot/your-site/storage
+chmod 755 /www/wwwroot/your-site/config
 ```
 
 ### 3. 数据库配置

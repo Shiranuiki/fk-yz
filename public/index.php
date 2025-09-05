@@ -8,9 +8,9 @@
 
 declare(strict_types=1);
 
-// 生产环境错误报告设置
-error_reporting(0);
-ini_set('display_errors', '0');
+// 生产环境错误报告设置（临时开启调试）
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 
 // 增加内存限制
 ini_set('memory_limit', '256M');
@@ -65,7 +65,7 @@ try {
     error_log("Application Error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
     
     // 生产环境错误处理
-    if (defined('DEBUG') && DEBUG) {
+    if (defined('DEBUG') && constant('DEBUG')) {
         echo "<h1>Application Error</h1>";
         echo "<p><strong>Message:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
         echo "<p><strong>File:</strong> " . htmlspecialchars($e->getFile()) . "</p>";

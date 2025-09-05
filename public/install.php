@@ -1,6 +1,6 @@
 <?php
 /**
- * 网络验证系统 - 现代化安装引导
+ * 网络验证系统 - 安装引导
  * 
  * 功能：
  * 1. 环境检测（PHP版本、扩展、权限等）
@@ -10,8 +10,8 @@
  * 5. 系统初始化
  */
 
-// 防止重复安装
-if (file_exists(__DIR__ . '/config/installed.lock')) {
+// 防止重复安装（检查项目根目录的config）
+if (file_exists(__DIR__ . '/../config/installed.lock')) {
     die('系统已安装，如需重新安装请删除 config/installed.lock 文件');
 }
 
@@ -49,8 +49,8 @@ function loadEnv($file) {
     }
 }
 
-// 加载环境变量（如果存在）
-loadEnv(__DIR__ . '/.env');
+// 加载环境变量（如果存在，在项目根目录）
+loadEnv(__DIR__ . '/../.env');
 
 // 获取当前步骤
 $step = $_GET['step'] ?? 'welcome';
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
         case 'dependencies':
-            handleDependencyInstall();
+            // 依赖检查页面不需要处理POST请求，只做检查
             break;
         case 'admin':
             handleAdminSetup();
@@ -124,27 +124,7 @@ function handleDatabaseConfig() {
     }
 }
 
-function handleDependencyInstall() {
-    $results = installDependencies();
-    $_SESSION['install_results'] = $results;
-    
-    // 检查是否所有依赖都安装成功
-    $allSuccess = true;
-    foreach ($results as $result) {
-        if ($result['status'] !== 'success') {
-            $allSuccess = false;
-            break;
-        }
-    }
-    
-    if ($allSuccess) {
-        $_SESSION['success'] = '所有依赖安装成功！';
-        header('Location: ?step=admin');
-        exit;
-    } else {
-        $_SESSION['error'] = '部分依赖安装失败，请查看详细信息';
-    }
-}
+// 依赖检查功能已改为手动引导，移除了自动安装
 
 function handleAdminSetup() {
     $username = $_POST['username'] ?? '';
@@ -250,7 +230,7 @@ RATE_LIMIT_LOGIN_MAX=5
 RATE_LIMIT_LOGIN_PER=60
 ";
 
-    $envPath = __DIR__ . '/.env';
+    $envPath = __DIR__ . '/../.env';
     if (!file_put_contents($envPath, $envContent)) {
         throw new Exception('无法创建.env文件，请检查目录权限。路径：' . $envPath);
     }
@@ -271,8 +251,8 @@ function runDatabaseMigrations() {
         $dbName = $dbConfig['name'];
         $pdo->exec("USE `{$dbName}`");
         
-        // 读取SQL文件并拆分为单独的语句
-        $sqlFile = __DIR__ . '/init_database_complete.sql';
+        // 读取SQL文件并拆分为单独的语句（在项目根目录）
+        $sqlFile = __DIR__ . '/../init_database_complete.sql';
         if (!file_exists($sqlFile)) {
             throw new Exception('数据库初始化文件不存在');
         }
@@ -376,7 +356,7 @@ function createAdminAccount() {
 }
 
 function createInstallLock() {
-    $lockDir = __DIR__ . '/config';
+    $lockDir = __DIR__ . '/../config';
     if (!is_dir($lockDir)) {
         if (!mkdir($lockDir, 0755, true)) {
             throw new Exception('无法创建config目录');
@@ -436,8 +416,8 @@ function checkEnvironment() {
         [
             'name' => 'storage目录写权限',
             'required' => '可写',
-            'current' => is_writable(__DIR__ . '/storage') ? '可写' : '不可写',
-            'status' => is_writable(__DIR__ . '/storage') ? 'success' : 'warning'
+            'current' => is_writable(__DIR__ . '/../storage') ? '可写' : '不可写',
+            'status' => is_writable(__DIR__ . '/../storage') ? 'success' : 'warning'
         ]
     ];
     
@@ -447,8 +427,11 @@ function checkEnvironment() {
 function checkDependencies() {
     $dependencies = [];
     
-    // 检查vendor目录
-    if (!is_dir(__DIR__ . '/vendor')) {
+    // 检查vendor目录和autoload文件（在项目根目录）
+    $vendorDir = __DIR__ . '/../vendor';
+    $autoloadFile = $vendorDir . '/autoload.php';
+    
+    if (!is_dir($vendorDir) || !file_exists($autoloadFile)) {
         $dependencies[] = [
             'name' => 'Composer依赖',
             'status' => 'missing',
@@ -456,52 +439,41 @@ function checkDependencies() {
             'description' => '安装项目依赖包'
         ];
     } else {
-        $dependencies[] = [
-            'name' => 'Composer依赖',
-            'status' => 'success',
-            'description' => '依赖包已安装'
+        // 进一步检查关键依赖是否存在
+        $keyDependencies = [
+            'firebase/php-jwt',
+            'monolog/monolog', 
+            'vlucas/phpdotenv'
         ];
+        
+        $missingDeps = [];
+        foreach ($keyDependencies as $dep) {
+            $depPath = $vendorDir . '/' . str_replace('/', DIRECTORY_SEPARATOR, $dep);
+            if (!is_dir($depPath)) {
+                $missingDeps[] = $dep;
+            }
+        }
+        
+        if (empty($missingDeps)) {
+            $dependencies[] = [
+                'name' => 'Composer依赖',
+                'status' => 'success',
+                'description' => '依赖包已安装'
+            ];
+        } else {
+            $dependencies[] = [
+                'name' => 'Composer依赖',
+                'status' => 'missing',
+                'command' => 'composer install --no-dev --optimize-autoloader',
+                'description' => '缺少关键依赖: ' . implode(', ', $missingDeps)
+            ];
+        }
     }
     
     return $dependencies;
 }
 
-function installDependencies() {
-    $results = [];
-    
-    // 安装Composer依赖
-    if (!is_dir(__DIR__ . '/vendor')) {
-        $output = [];
-        $returnCode = 0;
-        
-        // 检查Composer是否可用
-        exec('composer --version 2>&1', $output, $returnCode);
-        if ($returnCode !== 0) {
-            $results[] = [
-                'name' => 'Composer依赖',
-                'status' => 'error',
-                'message' => 'Composer未安装或不可用，请先安装Composer'
-            ];
-        } else {
-            // 执行composer install
-            $output = [];
-            exec('cd ' . escapeshellarg(__DIR__) . ' && composer install --no-dev --optimize-autoloader 2>&1', $output, $returnCode);
-            $results[] = [
-                'name' => 'Composer依赖',
-                'status' => $returnCode === 0 ? 'success' : 'error',
-                'message' => $returnCode === 0 ? '安装成功' : '安装失败: ' . implode("\n", $output)
-            ];
-        }
-        } else {
-            $results[] = [
-            'name' => 'Composer依赖',
-            'status' => 'success',
-            'message' => '依赖已存在，跳过安装'
-        ];
-    }
-    
-    return $results;
-}
+// installDependencies 函数已移除，改为手动引导安装
 
 function getStepProgress($currentStep) {
     $steps = ['welcome', 'environment', 'database', 'dependencies', 'admin', 'install', 'complete'];
@@ -520,7 +492,7 @@ $progress = getStepProgress($step);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>网络验证系统 - 现代化安装引导</title>
+    <title>网络验证系统 - 安装引导</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <style>
@@ -781,7 +753,7 @@ $progress = getStepProgress($step);
                 <div class="install-header">
                     <i class="bi bi-shield-check mb-3" style="font-size: 3rem;"></i>
                     <h1>网络验证系统</h1>
-                    <p class="subtitle mb-0">现代化安装引导 v2.0</p>
+                    <p class="subtitle mb-0">安装引导</p>
                             </div>
                             
                 <div class="progress-section">
