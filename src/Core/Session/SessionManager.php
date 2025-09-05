@@ -166,4 +166,44 @@ class SessionManager
     {
         self::set('last_activity', time());
     }
+
+    /**
+     * 设置Flash消息（一次性消息）
+     */
+    public static function setFlashMessage(string $type, string $message): void
+    {
+        self::start();
+        $_SESSION['flash_messages'][$type] = $message;
+    }
+
+    /**
+     * 获取Flash消息（获取后自动删除）
+     */
+    public static function getFlashMessage(string $type): ?string
+    {
+        self::start();
+        $message = $_SESSION['flash_messages'][$type] ?? null;
+        if ($message) {
+            unset($_SESSION['flash_messages'][$type]);
+        }
+        return $message;
+    }
+
+    /**
+     * 检查是否有Flash消息
+     */
+    public static function hasFlashMessage(string $type): bool
+    {
+        self::start();
+        return isset($_SESSION['flash_messages'][$type]);
+    }
+
+    /**
+     * 清除所有Flash消息
+     */
+    public static function clearFlashMessages(): void
+    {
+        self::start();
+        unset($_SESSION['flash_messages']);
+    }
 }

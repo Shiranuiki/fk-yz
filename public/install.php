@@ -10,8 +10,11 @@
  * 5. 系统初始化
  */
 
+// 定义项目根目录常量
+define('PROJECT_ROOT', dirname(__DIR__));
+
 // 防止重复安装（检查项目根目录的config）
-if (file_exists(__DIR__ . '/../config/installed.lock')) {
+if (file_exists(PROJECT_ROOT . '/config/installed.lock')) {
     die('系统已安装，如需重新安装请删除 config/installed.lock 文件');
 }
 
@@ -50,7 +53,7 @@ function loadEnv($file) {
 }
 
 // 加载环境变量（如果存在，在项目根目录）
-loadEnv(__DIR__ . '/../.env');
+loadEnv(PROJECT_ROOT . '/.env');
 
 // 获取当前步骤
 $step = $_GET['step'] ?? 'welcome';
@@ -161,7 +164,12 @@ function handleAdminSetup() {
 function handleInstallation() {
     if (performInstallation()) {
         $_SESSION['success'] = '系统安装完成！';
-        header('Location: ?step=complete');
+        // 直接跳转到系统首页
+        header('Location: /');
+        exit;
+    } else {
+        // 安装失败，重定向回安装页面显示错误
+        header('Location: ?step=install');
         exit;
     }
 }
@@ -230,7 +238,7 @@ RATE_LIMIT_LOGIN_MAX=5
 RATE_LIMIT_LOGIN_PER=60
 ";
 
-    $envPath = __DIR__ . '/../.env';
+    $envPath = PROJECT_ROOT . '/.env';
     if (!file_put_contents($envPath, $envContent)) {
         throw new Exception('无法创建.env文件，请检查目录权限。路径：' . $envPath);
     }
@@ -252,7 +260,7 @@ function runDatabaseMigrations() {
         $pdo->exec("USE `{$dbName}`");
         
         // 读取SQL文件并拆分为单独的语句（在项目根目录）
-        $sqlFile = __DIR__ . '/../init_database_complete.sql';
+        $sqlFile = PROJECT_ROOT . '/init_database_complete.sql';
         if (!file_exists($sqlFile)) {
             throw new Exception('数据库初始化文件不存在');
         }
@@ -356,7 +364,7 @@ function createAdminAccount() {
 }
 
 function createInstallLock() {
-    $lockDir = __DIR__ . '/../config';
+    $lockDir = PROJECT_ROOT . '/config';
     if (!is_dir($lockDir)) {
         if (!mkdir($lockDir, 0755, true)) {
             throw new Exception('无法创建config目录');
@@ -376,50 +384,141 @@ function createInstallLock() {
 }
 
 function checkEnvironment() {
-    $checks = [
-        [
+    $checks = [];
+    
+    // PHP版本检查
+    $checks[] = [
         'name' => 'PHP版本',
-            'required' => 'PHP 7.4+',
+        'required' => 'PHP 8.1+',
         'current' => PHP_VERSION,
-            'status' => version_compare(PHP_VERSION, '7.4.0', '>=') ? 'success' : 'error'
-        ],
-        [
-            'name' => 'PDO扩展',
-            'required' => '必需',
-            'current' => extension_loaded('pdo') ? '已安装' : '未安装',
-            'status' => extension_loaded('pdo') ? 'success' : 'error'
-        ],
-        [
-            'name' => 'PDO MySQL',
-            'required' => '必需',
-            'current' => extension_loaded('pdo_mysql') ? '已安装' : '未安装',
-            'status' => extension_loaded('pdo_mysql') ? 'success' : 'error'
-        ],
-        [
-            'name' => 'OpenSSL扩展',
-            'required' => '必需',
-            'current' => extension_loaded('openssl') ? '已安装' : '未安装',
-            'status' => extension_loaded('openssl') ? 'success' : 'error'
-        ],
-        [
-            'name' => 'JSON扩展',
-            'required' => '必需',
-            'current' => extension_loaded('json') ? '已安装' : '未安装',
-            'status' => extension_loaded('json') ? 'success' : 'error'
-        ],
-        [
-            'name' => '根目录写权限',
-            'required' => '可写',
-            'current' => is_writable(__DIR__) ? '可写' : '不可写',
-            'status' => is_writable(__DIR__) ? 'success' : 'error'
-        ],
-        [
-            'name' => 'storage目录写权限',
-            'required' => '可写',
-            'current' => is_writable(__DIR__ . '/../storage') ? '可写' : '不可写',
-            'status' => is_writable(__DIR__ . '/../storage') ? 'success' : 'warning'
-        ]
+        'status' => version_compare(PHP_VERSION, '8.1.0', '>=') ? 'success' : 'error'
     ];
+    
+    // 必需的PHP扩展
+    $requiredExtensions = [
+        'pdo' => 'PDO扩展 (数据库连接)',
+        'pdo_mysql' => 'PDO MySQL (MySQL数据库)',
+        'json' => 'JSON扩展 (数据序列化)',
+        'session' => 'Session扩展 (会话管理)',
+        'mbstring' => 'Mbstring扩展 (多字节字符串)',
+        'curl' => 'cURL扩展 (HTTP请求)',
+        'openssl' => 'OpenSSL扩展 (加密功能)',
+    ];
+    
+    foreach ($requiredExtensions as $ext => $description) {
+        $checks[] = [
+            'name' => $description,
+            'required' => '必需',
+            'current' => extension_loaded($ext) ? '已安装' : '未安装',
+            'status' => extension_loaded($ext) ? 'success' : 'error'
+        ];
+    }
+    
+    // 推荐的PHP扩展
+    $recommendedExtensions = [
+        'fileinfo' => 'Fileinfo扩展 (文件类型检测)',
+        'zip' => 'Zip扩展 (压缩文件处理)',
+        'gd' => 'GD扩展 (图像处理)',
+        'opcache' => 'OPcache扩展 (代码缓存)',
+    ];
+    
+    foreach ($recommendedExtensions as $ext => $description) {
+        // 特殊处理OPcache扩展检测
+        $isLoaded = false;
+        if ($ext === 'opcache') {
+            $isLoaded = extension_loaded('opcache') || extension_loaded('Zend OPcache');
+        } else {
+            $isLoaded = extension_loaded($ext);
+        }
+        
+        $checks[] = [
+            'name' => $description,
+            'required' => '推荐',
+            'current' => $isLoaded ? '已安装' : '未安装',
+            'status' => $isLoaded ? 'success' : 'warning'
+        ];
+    }
+    
+    // PHP配置检查
+    $checks[] = [
+        'name' => '文件上传',
+        'required' => '启用',
+        'current' => ini_get('file_uploads') ? '已启用' : '已禁用',
+        'status' => ini_get('file_uploads') ? 'success' : 'warning'
+    ];
+    
+    $uploadMaxSize = ini_get('upload_max_filesize');
+    $checks[] = [
+        'name' => '上传文件大小限制',
+        'required' => '2M+',
+        'current' => $uploadMaxSize,
+        'status' => (int)$uploadMaxSize >= 2 ? 'success' : 'warning'
+    ];
+    
+    $postMaxSize = ini_get('post_max_size');
+    $checks[] = [
+        'name' => 'POST数据大小限制',
+        'required' => '8M+',
+        'current' => $postMaxSize,
+        'status' => (int)$postMaxSize >= 8 ? 'success' : 'warning'
+    ];
+    
+    $memoryLimit = ini_get('memory_limit');
+    $checks[] = [
+        'name' => '内存限制',
+        'required' => '128M+',
+        'current' => $memoryLimit,
+        'status' => (int)$memoryLimit >= 128 ? 'success' : 'warning'
+    ];
+    
+    // 目录权限检查
+    $checks[] = [
+        'name' => '项目根目录写权限',
+        'required' => '可写',
+        'current' => is_writable(PROJECT_ROOT) ? '可写' : '不可写',
+        'status' => is_writable(PROJECT_ROOT) ? 'success' : 'error'
+    ];
+    
+    $storageDir = PROJECT_ROOT . '/storage';
+    $checks[] = [
+        'name' => 'storage目录写权限',
+        'required' => '可写',
+        'current' => is_writable($storageDir) ? '可写' : '不可写',
+        'status' => is_writable($storageDir) ? 'success' : 'error'
+    ];
+    
+    $publicDir = PROJECT_ROOT . '/public';
+    $checks[] = [
+        'name' => 'public目录写权限',
+        'required' => '可写',
+        'current' => is_writable($publicDir) ? '可写' : '不可写',
+        'status' => is_writable($publicDir) ? 'success' : 'warning'
+    ];
+    
+    // 创建必要的目录
+    $requiredDirs = [
+        '/storage/logs',
+        '/storage/cache',
+        '/storage/sessions',
+        '/public/storage/uploads/logos'
+    ];
+    
+    foreach ($requiredDirs as $dir) {
+        $fullPath = PROJECT_ROOT . $dir;
+        $dirExists = is_dir($fullPath);
+        
+        if (!$dirExists) {
+            @mkdir($fullPath, 0755, true);
+            $dirExists = is_dir($fullPath);
+        }
+        
+        $checks[] = [
+            'name' => "目录: {$dir}",
+            'required' => '存在且可写',
+            'current' => $dirExists ? (is_writable($fullPath) ? '存在且可写' : '存在但不可写') : '不存在',
+            'status' => ($dirExists && is_writable($fullPath)) ? 'success' : 'warning'
+        ];
+    }
     
     return $checks;
 }
@@ -428,7 +527,7 @@ function checkDependencies() {
     $dependencies = [];
     
     // 检查vendor目录和autoload文件（在项目根目录）
-    $vendorDir = __DIR__ . '/../vendor';
+    $vendorDir = PROJECT_ROOT . '/vendor';
     $autoloadFile = $vendorDir . '/autoload.php';
     
     if (!is_dir($vendorDir) || !file_exists($autoloadFile)) {

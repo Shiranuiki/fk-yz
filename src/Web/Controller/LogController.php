@@ -38,7 +38,8 @@ class LogController
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
             $type = $request->get('type', 'usage'); // usage 或 admin
             $page = (int)($request->get('page', 1));
@@ -420,7 +421,8 @@ HTML;
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
             $type = $request->get('type', 'usage');
             $search = $request->get('search');
@@ -503,7 +505,8 @@ HTML;
                 'error' => $e->getMessage(),
             ]);
             
-            return Response::redirect('/logs?error=' . urlencode('导出日志失败'));
+            SessionManager::setFlashMessage('error', '导出日志失败');
+            return Response::redirect('/logs');
         }
     }
 

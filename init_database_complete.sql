@@ -68,7 +68,14 @@ CREATE TABLE IF NOT EXISTS admin_logs (
 -- 默认管理员账号由安装程序创建，此处不再插入
 -- 安装程序会在 createAdminAccount() 函数中插入用户填写的管理员信息
 
--- 6. 插入一些测试数据（可选）
+-- 6. 清除所有旧数据并重新初始化
+-- 清空所有表数据（按外键依赖顺序）
+TRUNCATE TABLE usage_logs;
+TRUNCATE TABLE admin_logs;
+TRUNCATE TABLE admin_settings;
+TRUNCATE TABLE licenses;
+
+-- 插入新的测试数据
 INSERT INTO licenses (license_key, status, duration_days, expires_at) VALUES
 ('LIC-TEST001', 0, 30, DATE_ADD(NOW(), INTERVAL 30 DAY)),
 ('LIC-TEST002', 0, 90, DATE_ADD(NOW(), INTERVAL 90 DAY)),

@@ -82,19 +82,31 @@ foreach ($envChecks as $check) {
 <?php endif; ?>
 
 <div class="row mt-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="feature-card">
-            <h6><i class="bi bi-list-check text-success me-2"></i>推荐配置</h6>
+            <h6><i class="bi bi-list-check text-success me-2"></i>系统要求</h6>
             <ul class="list-unstyled small text-muted">
-                <li><i class="bi bi-dot"></i> PHP 8.0+ (当前: <?= PHP_VERSION ?>)</li>
-                <li><i class="bi bi-dot"></i> MySQL 8.0+ 或 MariaDB 10.3+</li>
-                <li><i class="bi bi-dot"></i> 内存: 512MB+</li>
-                <li><i class="bi bi-dot"></i> 磁盘空间: 100MB+</li>
+                <li><i class="bi bi-dot"></i> PHP 8.1+ (当前: <?= PHP_VERSION ?>)</li>
+                <li><i class="bi bi-dot"></i> MySQL 5.7+ 或 MariaDB 10.3+</li>
+                <li><i class="bi bi-dot"></i> 内存: 128MB+</li>
+                <li><i class="bi bi-dot"></i> 磁盘空间: 200MB+</li>
             </ul>
         </div>
     </div>
     
-    <div class="col-md-6">
+    <div class="col-md-4">
+        <div class="feature-card">
+            <h6><i class="bi bi-puzzle text-warning me-2"></i>PHP扩展安装</h6>
+            <div class="small text-muted">
+                <strong>Ubuntu/Debian:</strong><br>
+                <code class="small">sudo apt-get install php-pdo php-mysql php-json php-mbstring php-curl php-openssl php-fileinfo</code><br><br>
+                <strong>宝塔面板:</strong><br>
+                软件商店 → PHP设置 → 安装扩展
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
         <div class="feature-card">
             <h6><i class="bi bi-shield-check text-primary me-2"></i>安全建议</h6>
             <ul class="list-unstyled small text-muted">

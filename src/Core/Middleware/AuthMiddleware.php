@@ -33,12 +33,14 @@ class AuthMiddleware implements MiddlewareInterface
             // 检查会话是否过期
             if (SessionManager::isExpired(3600)) { // 1小时过期
                 SessionManager::clearAdminLogin();
-                return Response::redirect('/login?error=' . urlencode('会话已过期，请重新登录'));
+                SessionManager::setFlashMessage('error', '会话已过期，请重新登录');
+                return Response::redirect('/login');
             }
 
             // 检查是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
 
             // 更新活动时间

@@ -181,5 +181,26 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         clearInterval(confettiInterval);
     }, 3000);
+    
+    // 5秒后自动跳转到系统首页
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 5000);
+    
+    // 显示倒计时
+    let countdown = 5;
+    const countdownElement = document.createElement('div');
+    countdownElement.className = 'alert alert-info text-center mt-4';
+    countdownElement.innerHTML = `<i class="bi bi-clock me-2"></i>页面将在 <span id="countdown">${countdown}</span> 秒后自动跳转到系统首页...`;
+    
+    document.querySelector('.text-center:last-of-type').before(countdownElement);
+    
+    const countdownInterval = setInterval(() => {
+        countdown--;
+        document.getElementById('countdown').textContent = countdown;
+        if (countdown <= 0) {
+            clearInterval(countdownInterval);
+        }
+    }, 1000);
 });
 </script>

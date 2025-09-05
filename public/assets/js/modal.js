@@ -51,33 +51,7 @@ class Modal {
                 </div>
             </div>
 
-            <!-- 创建许可证对话框 -->
-            <div class="modal fade" id="createLicenseModal" tabindex="-1">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">创建许可证</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label for="licenseCount" class="form-label">许可证数量</label>
-                                <input type="number" class="form-control" id="licenseCount" min="1" max="100" value="1">
-                                <div class="form-text">请输入1-100之间的数量</div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="licenseDays" class="form-label">有效期（天）</label>
-                                <input type="number" class="form-control" id="licenseDays" min="1" max="3650" value="365">
-                                <div class="form-text">请输入1-3650天之间的有效期</div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" id="createLicenseOk">创建许可证</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+           
 
             <!-- 警告对话框 -->
             <div class="modal fade" id="alertModal" tabindex="-1">
@@ -209,6 +183,12 @@ class Modal {
     // 创建许可证的专用对话框
     createLicenseDialog() {
         return new Promise((resolve) => {
+            
+            const existingModal = document.getElementById('createLicenseModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
             // 动态创建模态框HTML
             this.createLicenseModalHTML();
             
@@ -251,8 +231,33 @@ class Modal {
                 if (useDefaultCheckbox && customFormatDiv) {
                     useDefaultCheckbox.addEventListener('change', (e) => {
                         customFormatDiv.style.display = e.target.checked ? 'none' : 'block';
+                        updatePreview();
                     });
                 }
+                
+                // 实时预览功能
+                function updatePreview() {
+                    const previewElement = document.getElementById('formatPreview');
+                    if (!previewElement) return;
+                    
+                    if (useDefaultCheckbox && useDefaultCheckbox.checked) {
+                        previewElement.textContent = 'zz + 16位随机字符 (总长度18位)';
+                    } else if (prefixInput && lengthInput && charsetSelect) {
+                        const prefix = prefixInput.value || 'zz';
+                        const totalLength = parseInt(lengthInput.value) || 18;
+                        const randomLength = Math.max(0, totalLength - prefix.length);
+                        const charsetName = charsetSelect.options[charsetSelect.selectedIndex].text;
+                        previewElement.textContent = `${prefix} + ${randomLength}位随机字符 (${charsetName}, 总长度${totalLength}位)`;
+                    }
+                }
+                
+                // 绑定预览更新事件
+                if (prefixInput) prefixInput.addEventListener('input', updatePreview);
+                if (lengthInput) lengthInput.addEventListener('input', updatePreview);
+                if (charsetSelect) charsetSelect.addEventListener('change', updatePreview);
+                
+                // 初始化预览
+                updatePreview();
                 
                 const okBtn = document.getElementById('createLicenseOk');
                 const newOkBtn = okBtn.cloneNode(true);
@@ -319,73 +324,123 @@ class Modal {
         }
         const modalHTML = `
         <div class="modal fade" id="createLicenseModal" tabindex="-1" aria-labelledby="createLicenseModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="createLicenseModalLabel">创建许可证</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title" id="createLicenseModalLabel">
+                            <i class="bi bi-plus-circle me-2"></i>创建许可证
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="mb-3">
-                                    <label for="licenseCount" class="form-label">数量</label>
-                                    <input type="number" class="form-control" id="licenseCount" min="1" max="100" value="1">
-                                </div>
+                        <!-- 基本设置 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-gear me-2"></i>基本设置
+                                </h6>
                             </div>
-                            <div class="col-6">
-                                <div class="mb-3">
-                                    <label for="licenseDays" class="form-label">有效期(天)</label>
-                                    <input type="number" class="form-control" id="licenseDays" min="1" max="3650" value="365">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label for="licenseCount" class="form-label">
+                                                <i class="bi bi-hash me-1"></i>数量
+                                            </label>
+                                            <input type="number" class="form-control" id="licenseCount" min="1" max="100" value="1">
+                                            <div class="form-text">1-100个许可证</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label for="licenseDays" class="form-label">
+                                                <i class="bi bi-calendar me-1"></i>有效期(天)
+                                            </label>
+                                            <input type="number" class="form-control" id="licenseDays" min="1" max="3650" value="365">
+                                            <div class="form-text">1-3650天有效期</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <hr>
-                        
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="useDefaultFormat" checked>
-                                <label class="form-check-label" for="useDefaultFormat">
-                                    使用默认格式 (zz开头18位小写字母数字)
-                                </label>
+                        <!-- 格式设置 -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="bi bi-code me-2"></i>格式设置
+                                </h6>
                             </div>
-                        </div>
-                        
-                        <div id="customFormatDiv" style="display: none;">
-                            <h6 class="text-muted mb-3">自定义格式</h6>
-                            <div class="row">
-                                <div class="col-4">
-                                    <div class="mb-3">
-                                        <label for="licensePrefix" class="form-label">前缀</label>
-                                        <input type="text" class="form-control" id="licensePrefix" value="zz" placeholder="例如: zz, LIC-">
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="useDefaultFormat" checked>
+                                        <label class="form-check-label" for="useDefaultFormat">
+                                            <strong>使用默认格式</strong>
+                                            <small class="text-muted d-block">格式：zz + 16位随机字符 (共18位)</small>
+                                        </label>
                                     </div>
                                 </div>
-                                <div class="col-4">
-                                    <div class="mb-3">
-                                        <label for="licenseLength" class="form-label">总长度</label>
-                                        <input type="number" class="form-control" id="licenseLength" min="8" max="64" value="18">
+                                
+                                <div id="customFormatDiv" style="display: none;">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        <strong>自定义格式</strong> - 您可以自定义许可证的生成规则
                                     </div>
-                                </div>
-                                <div class="col-4">
-                                    <div class="mb-3">
-                                        <label for="licenseCharset" class="form-label">字符集</label>
-                                        <select class="form-control" id="licenseCharset">
-                                            <option value="abcdefghijklmnopqrstuvwxyz0123456789">小写字母+数字</option>
-                                            <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789">大写字母+数字</option>
-                                            <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789">大小写字母+数字</option>
-                                            <option value="0123456789">仅数字</option>
-                                            <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">仅大写字母</option>
-                                            <option value="abcdefghijklmnopqrstuvwxyz">仅小写字母</option>
-                                        </select>
+                                    <div class="row">
+                                        <div class="col-4">
+                                            <div class="mb-3">
+                                                <label for="licensePrefix" class="form-label">
+                                                    <i class="bi bi-type me-1"></i>前缀
+                                                </label>
+                                                <input type="text" class="form-control" id="licensePrefix" value="zz" placeholder="例如: zz, LIC-">
+                                                <div class="form-text">许可证开头字符</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="mb-3">
+                                                <label for="licenseLength" class="form-label">
+                                                    <i class="bi bi-rulers me-1"></i>总长度
+                                                </label>
+                                                <input type="number" class="form-control" id="licenseLength" min="8" max="64" value="18">
+                                                <div class="form-text">8-64个字符</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="mb-3">
+                                                <label for="licenseCharset" class="form-label">
+                                                    <i class="bi bi-alphabet me-1"></i>字符集
+                                                </label>
+                                                <select class="form-select" id="licenseCharset">
+                                                    <option value="abcdefghijklmnopqrstuvwxyz0123456789">小写字母+数字</option>
+                                                    <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789">大写字母+数字</option>
+                                                    <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789">大小写字母+数字</option>
+                                                    <option value="0123456789">仅数字</option>
+                                                    <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">仅大写字母</option>
+                                                    <option value="abcdefghijklmnopqrstuvwxyz">仅小写字母</option>
+                                                </select>
+                                                <div class="form-text">生成时使用的字符</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 预览 -->
+                                    <div class="alert alert-secondary">
+                                        <i class="bi bi-eye me-2"></i>
+                                        <strong>示例：</strong>
+                                        <code id="formatPreview">zz + 16位随机字符</code>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="button" class="btn btn-primary" id="createLicenseOk">创建</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i>取消
+                        </button>
+                        <button type="button" class="btn btn-primary" id="createLicenseOk">
+                            <i class="bi bi-plus-circle me-1"></i>创建许可证
+                        </button>
                     </div>
                 </div>
             </div>

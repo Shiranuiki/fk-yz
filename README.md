@@ -173,11 +173,29 @@ php-mbstring     # 多字节字符串
 php-curl         # HTTP请求
 php-openssl      # 加密功能
 php-zip          # 压缩文件处理
+php-fileinfo     # 文件类型检测 (Logo上传功能必需)
 
 # 推荐扩展
 php-redis        # Redis缓存
 php-opcache      # 代码缓存
 php-gd           # 图像处理
+```
+
+### PHP扩展安装
+```bash
+# Ubuntu/Debian系统
+sudo apt-get update
+sudo apt-get install php-fileinfo php-pdo php-json php-mbstring php-curl php-openssl php-zip
+
+# CentOS/RHEL系统
+sudo yum install php-fileinfo php-pdo php-json php-mbstring php-curl php-openssl php-zip
+
+# 使用宝塔面板
+# 1. 进入 软件商店 → PHP设置 → 安装扩展
+# 2. 查找并安装以下扩展：fileinfo、pdo、json、mbstring、curl、openssl、zip
+
+# 验证扩展安装
+php -m | grep fileinfo
 ```
 
 ### 环境检查

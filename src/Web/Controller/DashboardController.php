@@ -41,7 +41,8 @@ class DashboardController
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
             // 获取许可证统计
             $licenseStats = $this->licenseModel->getStats();

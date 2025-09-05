@@ -38,7 +38,8 @@ class SettingsController
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
 
             $settings = $this->getCurrentSettings();
@@ -89,16 +90,21 @@ class SettingsController
             $brandHtml = '<i class="bi bi-shield-check"></i> ' . htmlspecialchars($systemName);
         }
         
-        // 处理成功/错误消息 - 使用现代化通知系统
+        // 处理成功/错误消息 - 使用SESSION Flash消息
         $notificationScript = '';
-        if (isset($_GET['success'])) {
-            $message = htmlspecialchars($_GET['success']);
+        
+        $successMessage = SessionManager::getFlashMessage('success');
+        $errorMessage = SessionManager::getFlashMessage('error');
+        $infoMessage = SessionManager::getFlashMessage('info');
+        
+        if ($successMessage) {
+            $message = htmlspecialchars($successMessage);
             $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.success('{$message}'); });</script>";
-        } elseif (isset($_GET['error'])) {
-            $message = htmlspecialchars($_GET['error']);
+        } elseif ($errorMessage) {
+            $message = htmlspecialchars($errorMessage);
             $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.error('{$message}'); });</script>";
-        } elseif (isset($_GET['info'])) {
-            $message = htmlspecialchars($_GET['info']);
+        } elseif ($infoMessage) {
+            $message = htmlspecialchars($infoMessage);
             $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.info('{$message}'); });</script>";
         }
         $alertHtml = '';
@@ -189,7 +195,7 @@ class SettingsController
                             <div class="mb-3">
                                 <label for="website_logo" class="form-label">网站Logo</label>
                                 <div class="mb-2">
-                                    <input type="url" class="form-control" id="website_logo_url" name="WEBSITE_LOGO" value="{$settings['website_logo']}" placeholder="https://example.com/logo.png">
+                                    <input type="text" class="form-control" id="website_logo_url" name="WEBSITE_LOGO" value="{$settings['website_logo']}" placeholder="https://example.com/logo.png">
                                     <div class="form-text">输入Logo图片的URL地址</div>
                                 </div>
                                 <div class="mb-2">
@@ -198,6 +204,43 @@ class SettingsController
                                     <div class="form-text">支持 JPG, PNG, GIF, SVG 格式，建议尺寸 200x50px</div>
                                 </div>
                                 {$logoPreview}
+                                <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    const logoUrlInput = document.getElementById('website_logo_url');
+                                    const logoFileInput = document.getElementById('logo_file');
+                                    const form = document.querySelector('form[method="post"]');
+                                    
+                                    if (!logoUrlInput || !logoFileInput || !form) return;
+                                    
+                                    const originalLogoValue = logoUrlInput.value;
+                                    
+                                    // 当选择文件时，清空URL输入框
+                                    logoFileInput.addEventListener('change', function() {
+                                        if (this.files.length > 0) {
+                                            logoUrlInput.value = '';
+                                        }
+                                    });
+                                    
+                                    // 当输入URL时，清空文件选择
+                                    logoUrlInput.addEventListener('input', function() {
+                                        if (this.value.trim() !== '' && this.value !== originalLogoValue) {
+                                            logoFileInput.value = '';
+                                        }
+                                    });
+                                    
+                                    // 表单提交时的处理
+                                    form.addEventListener('submit', function(e) {
+                                        // 如果用户没有上传新文件，且URL输入框为空，则保持原值
+                                        if (logoFileInput.files.length === 0 && logoUrlInput.value.trim() === '') {
+                                            logoUrlInput.value = originalLogoValue;
+                                        }
+                                        
+                                        // 调试信息（可在浏览器控制台查看）
+                                        console.log('Logo URL value:', logoUrlInput.value);
+                                        console.log('Logo file selected:', logoFileInput.files.length > 0);
+                                    });
+                                });
+                                </script>
                             </div>
                             <div class="mb-3">
                                 <label for="jwt_expiry" class="form-label">JWT令牌有效期 (秒)</label>
@@ -438,8 +481,8 @@ class SettingsController
                             <button class="btn btn-outline-warning" onclick="exportData()">
                                 <i class="bi bi-download"></i> 导出数据
                             </button>
-                            <button class="btn btn-outline-info" onclick="checkUpdate()">
-                                <i class="bi bi-cloud-download"></i> 检查更新
+                            <button class="btn btn-outline-info" onclick="systemDiagnosis()">
+                                <i class="bi bi-shield-check"></i> 系统诊断
                             </button>
                         </div>
                     </div>
@@ -471,15 +514,128 @@ class SettingsController
             }
         }
         
-        async function checkUpdate() {
-            const confirmed = await modernModal.confirm('确定要检查系统更新吗？', '检查更新');
+        async function systemDiagnosis() {
+            const confirmed = await modernModal.confirm('确定要进行系统诊断吗？这将检查系统健康状态和配置完整性。', '系统诊断');
             if (confirmed) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/settings/check-update';
-                document.body.appendChild(form);
-                form.submit();
+                // 显示加载状态
+                const loadingBtn = document.querySelector('button[onclick="systemDiagnosis()"]');
+                const originalText = loadingBtn.innerHTML;
+                loadingBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 诊断中...';
+                loadingBtn.disabled = true;
+                
+                try {
+                    const response = await fetch('/settings/system-diagnosis', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    // 恢复按钮状态
+                    loadingBtn.innerHTML = originalText;
+                    loadingBtn.disabled = false;
+                    
+                    // 显示诊断结果模态框
+                    showDiagnosisResult(result);
+                    
+                } catch (error) {
+                    loadingBtn.innerHTML = originalText;
+                    loadingBtn.disabled = false;
+                    await modernModal.alert('系统诊断失败: ' + error.message, '错误', 'error');
+                }
             }
+        }
+        
+        function showDiagnosisResult(result) {
+            let accordionHtml = '';
+            result.details.forEach((section, index) => {
+                let itemsHtml = '';
+                section.items.forEach(item => {
+                    itemsHtml += `
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="me-2">\${item.icon}</span>
+                            <span>\${item.text}</span>
+                        </div>
+                    `;
+                });
+                
+                accordionHtml += `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button \${index === 0 ? '' : 'collapsed'}" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#collapse\${index}">
+                                \${section.icon} \${section.title}
+                                <span class="badge bg-\${section.status === 'success' ? 'success' : 'warning'} ms-2">
+                                    \${section.status === 'success' ? '正常' : '有问题'}
+                                </span>
+                            </button>
+                        </h2>
+                        <div id="collapse\${index}" class="accordion-collapse collapse \${index === 0 ? 'show' : ''}" 
+                             data-bs-parent="#diagnosisAccordion">
+                            <div class="accordion-body">
+                                \${itemsHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            const modalHtml = `
+                <div class="modal fade" id="diagnosisModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header \${result.status === 'success' ? 'bg-success' : 'bg-warning'} text-white">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-\${result.status === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                                    系统诊断报告
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-\${result.status === 'success' ? 'success' : 'warning'} mb-3">
+                                    <strong>\${result.message}</strong>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <strong>当前版本:</strong> \${result.version}
+                                    </div>
+                                    <div class="col-6">
+                                        <strong>检查时间:</strong> \${result.checkTime}
+                                    </div>
+                                </div>
+                                
+                                <div class="accordion" id="diagnosisAccordion">
+                                    \${accordionHtml}
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="bi bi-x-circle me-1"></i>关闭
+                                </button>
+                                <button type="button" class="btn btn-primary" onclick="window.location.reload()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>刷新页面
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 移除现有的诊断模态框
+            const existingModal = document.getElementById('diagnosisModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // 添加新的模态框
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('diagnosisModal'));
+            modal.show();
         }
         
         // 实时更新服务器时间
@@ -544,17 +700,43 @@ HTML;
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
 
-            $data = $request->all();
+            // 获取POST数据，兼容multipart/form-data
+            $data = $_POST;
             
             // 处理Logo文件上传
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['error'] === UPLOAD_ERR_OK) {
                 $logoPath = $this->handleLogoUpload($_FILES['logo_file']);
                 if ($logoPath) {
                     $data['WEBSITE_LOGO'] = $logoPath;
+                    // 标记为文件上传，在验证时跳过URL验证
+                    $data['_logo_uploaded'] = true;
+                } else {
+                    // 获取详细的错误信息，使用session传递避免URL过长
+                    global $logoUploadError;
+                    if ($logoUploadError) {
+                        SessionManager::setFlashMessage('error', 'Logo上传失败: ' . $logoUploadError['error']);
+                    } else {
+                        SessionManager::setFlashMessage('error', 'Logo上传失败，未知错误');
+                    }
+                    return Response::redirect('/settings');
                 }
+            } elseif (isset($_FILES['logo_file']) && $_FILES['logo_file']['error'] !== UPLOAD_ERR_NO_FILE) {
+                // 处理其他上传错误
+                $uploadErrors = [
+                    UPLOAD_ERR_INI_SIZE => '文件大小超过服务器限制',
+                    UPLOAD_ERR_FORM_SIZE => '文件大小超过表单限制',
+                    UPLOAD_ERR_PARTIAL => '文件只有部分被上传',
+                    UPLOAD_ERR_NO_TMP_DIR => '缺少临时文件夹',
+                    UPLOAD_ERR_CANT_WRITE => '文件写入失败',
+                    UPLOAD_ERR_EXTENSION => '文件上传被扩展程序阻止'
+                ];
+                $errorMsg = $uploadErrors[$_FILES['logo_file']['error']] ?? '未知上传错误';
+                SessionManager::setFlashMessage('error', 'Logo上传失败: ' . $errorMsg);
+                return Response::redirect('/settings');
             }
             $envPath = PROJECT_ROOT . '/.env';
             
@@ -566,7 +748,8 @@ HTML;
             // 验证输入数据
             $validationErrors = $this->validateSettings($data);
             if (!empty($validationErrors)) {
-                return Response::redirect('/settings?error=' . urlencode(implode(', ', $validationErrors)));
+                SessionManager::setFlashMessage('error', implode(', ', $validationErrors));
+                return Response::redirect('/settings');
             }
             
             // 读取现有的.env文件
@@ -598,7 +781,8 @@ HTML;
             }
             
             if (empty($updated)) {
-                return Response::redirect('/settings?info=' . urlencode('没有配置项被修改'));
+                SessionManager::setFlashMessage('info', '没有配置项被修改');
+                return Response::redirect('/settings');
             }
             
             // 重新构建.env文件内容
@@ -611,7 +795,8 @@ HTML;
             
             // 写入新的.env文件
             if (file_put_contents($envPath, $newEnvContent) === false) {
-                return Response::redirect('/settings?error=' . urlencode('保存配置失败，请检查文件权限'));
+                SessionManager::setFlashMessage('error', '保存配置失败，请检查文件权限');
+                return Response::redirect('/settings');
             }
             
             // 记录操作日志
@@ -627,14 +812,32 @@ HTML;
                 'ip' => $request->getClientIp(),
             ]);
             
-            return Response::redirect('/settings?success=' . urlencode('设置保存成功，部分配置需要重启服务器生效'));
+            SessionManager::setFlashMessage('success', '设置保存成功，部分配置需要重启服务器生效');
+            return Response::redirect('/settings');
             
         } catch (\Exception $e) {
-            $this->logger->error('Save settings error', [
-                'error' => $e->getMessage(),
-            ]);
+            // 记录详细错误信息
+            error_log('Settings save error: ' . $e->getMessage());
+            error_log('Stack trace: ' . $e->getTraceAsString());
             
-            return Response::redirect('/settings?error=' . urlencode('保存设置时发生错误: ' . $e->getMessage()));
+            try {
+                $this->logger->error('Save settings error', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            } catch (\Exception $logError) {
+                error_log('Logger error: ' . $logError->getMessage());
+            }
+            
+            SessionManager::setFlashMessage('error', '保存设置时发生错误: ' . $e->getMessage());
+            return Response::redirect('/settings');
+        } catch (\Throwable $e) {
+            // 捕获所有错误包括Fatal Error
+            error_log('Settings save fatal error: ' . $e->getMessage());
+            error_log('Stack trace: ' . $e->getTraceAsString());
+            
+            SessionManager::setFlashMessage('error', '保存设置时发生严重错误: ' . $e->getMessage());
+            return Response::redirect('/settings');
         }
     }
 
@@ -659,12 +862,30 @@ HTML;
             }
         }
         
-        // 验证网站Logo
-        if (isset($data['WEBSITE_LOGO']) && !empty($data['WEBSITE_LOGO'])) {
-            $logo = $data['WEBSITE_LOGO'];
-            // 检查是否为完整URL或本地路径
-            if (!filter_var($logo, FILTER_VALIDATE_URL) && !preg_match('/^\/[a-zA-Z0-9\/_.-]+\.(jpg|jpeg|png|gif|svg)$/i', $logo)) {
-                $errors[] = '网站Logo必须是有效的URL或本地图片路径';
+        // 验证网站Logo - 只在有值时进行验证
+        if (isset($data['WEBSITE_LOGO']) && !empty(trim($data['WEBSITE_LOGO']))) {
+            $logo = trim($data['WEBSITE_LOGO']);
+            
+            // 检查是否为上传的文件路径
+            $isUploadedFile = strpos($logo, '/storage/uploads/logos/') === 0;
+            
+            // 如果是新上传的文件或已存在的上传文件，验证文件路径格式
+            if (isset($data['_logo_uploaded']) && $data['_logo_uploaded'] === true) {
+                // 新上传的文件
+                if (!$isUploadedFile) {
+                    $errors[] = '上传的Logo文件路径格式不正确';
+                }
+            } elseif ($isUploadedFile) {
+                // 已存在的上传文件，无需额外验证
+                // 这种情况发生在保存其他设置项时，Logo字段保持不变
+            } else {
+                // URL输入的验证
+                $isValidUrl = filter_var($logo, FILTER_VALIDATE_URL);
+                $isValidLocalPath = preg_match('/^\/[a-zA-Z0-9\/_.-]+\.(jpg|jpeg|png|gif|svg)$/i', $logo);
+                
+                if (!$isValidUrl && !$isValidLocalPath) {
+                    $errors[] = '网站Logo必须是有效的URL或本地图片路径';
+                }
             }
         }
         
@@ -800,30 +1021,35 @@ HTML;
             
             // 验证必需字段
             if (empty($data['current_password'])) {
-                return Response::redirect('/settings?error=' . urlencode('请输入当前密码'));
+                SessionManager::setFlashMessage('error', '请输入当前密码');
+                return Response::redirect('/settings');
             }
             
             // 验证新密码（如果提供）
             if (!empty($data['new_password'])) {
                 if (strlen($data['new_password']) < 6) {
-                    return Response::redirect('/settings?error=' . urlencode('新密码至少需要6位字符'));
+                    SessionManager::setFlashMessage('error', '新密码至少需要6位字符');
+                    return Response::redirect('/settings');
                 }
                 
                 if ($data['new_password'] !== $data['confirm_password']) {
-                    return Response::redirect('/settings?error=' . urlencode('两次输入的新密码不一致'));
+                    SessionManager::setFlashMessage('error', '两次输入的新密码不一致');
+                    return Response::redirect('/settings');
                 }
             }
             
             // 获取当前登录的管理员ID
             $currentAdminId = SessionManager::getAdminId();
             if (!$currentAdminId) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
             
             // 获取当前管理员信息
             $currentAdmin = $this->adminModel->find($currentAdminId);
             if (!$currentAdmin) {
-                return Response::redirect('/settings?error=' . urlencode('管理员信息不存在'));
+                SessionManager::setFlashMessage('error', '管理员信息不存在');
+                return Response::redirect('/settings');
             }
             
             $changes = [];
@@ -835,7 +1061,8 @@ HTML;
             );
             
             if (!$currentPasswordValid) {
-                return Response::redirect('/settings?error=' . urlencode('当前密码错误'));
+                SessionManager::setFlashMessage('error', '当前密码错误');
+                return Response::redirect('/settings');
             }
             
             // 如果提供了新用户名
@@ -852,7 +1079,8 @@ HTML;
             }
             
             if (empty($changes)) {
-                return Response::redirect('/settings?info=' . urlencode('没有任何修改'));
+                SessionManager::setFlashMessage('info', '没有任何修改');
+                return Response::redirect('/settings');
             }
             
             // 记录操作日志
@@ -863,14 +1091,16 @@ HTML;
                 $request->getUserAgent()
             );
             
-            return Response::redirect('/settings?success=' . urlencode('管理员账号修改成功: ' . implode(', ', $changes)));
+            SessionManager::setFlashMessage('success', '管理员账号修改成功: ' . implode(', ', $changes));
+            return Response::redirect('/settings');
             
         } catch (\Exception $e) {
             $this->logger->error('Change password error', [
                 'error' => $e->getMessage(),
             ]);
             
-            return Response::redirect('/settings?error=' . urlencode('修改密码时发生错误: ' . $e->getMessage()));
+            SessionManager::setFlashMessage('error', '修改密码时发生错误: ' . $e->getMessage());
+            return Response::redirect('/settings');
         }
     }
 
@@ -929,17 +1159,20 @@ HTML;
             );
             
             if (empty($clearedItems)) {
-                return Response::redirect('/settings?info=' . urlencode('没有需要清理的缓存项'));
+                SessionManager::setFlashMessage('info', '没有需要清理的缓存项');
+                return Response::redirect('/settings');
             }
             
-            return Response::redirect('/settings?success=' . urlencode('缓存清理成功: ' . implode(', ', $clearedItems)));
+            SessionManager::setFlashMessage('success', '缓存清理成功: ' . implode(', ', $clearedItems));
+            return Response::redirect('/settings');
             
         } catch (\Exception $e) {
             $this->logger->error('Clear cache error', [
                 'error' => $e->getMessage(),
             ]);
             
-            return Response::redirect('/settings?error=' . urlencode('清理缓存失败: ' . $e->getMessage()));
+            SessionManager::setFlashMessage('error', '清理缓存失败: ' . $e->getMessage());
+            return Response::redirect('/settings');
         }
     }
 
@@ -1003,25 +1236,29 @@ HTML;
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/settings?error=' . urlencode('数据导出失败: ' . $e->getMessage()));
+            SessionManager::setFlashMessage('error', '数据导出失败: ' . $e->getMessage());
+            return Response::redirect('/settings');
         }
     }
 
     /**
-     * 检查更新
+     * 系统诊断
      */
-    public function checkUpdate(Request $request): Response
+    public function systemDiagnosis(Request $request): Response
     {
         try {
-            $currentVersion = '2.0.0';
+            // 从配置文件获取当前版本
+            $currentVersion = $_ENV['APP_VERSION'] ?? '2.0.0';
             $updateInfo = [];
             
             // 检查系统文件完整性
             $coreFiles = [
-                'index.php',
+                'public/index.php',
                 'src/Core/Application.php',
                 'src/Core/Router/Router.php',
                 'src/Core/Container/Container.php',
+                'src/Web/Controller/LicenseController.php',
+                'src/Api/Controller/VerificationController.php',
             ];
             
             $missingFiles = [];
@@ -1048,7 +1285,8 @@ HTML;
                 [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
             );
 
-            $requiredTables = ['licenses', 'usage_logs', 'admin_logs', 'admin_settings'];
+            // 检查正确的数据表
+            $requiredTables = ['licenses', 'usage_logs', 'admin_logs'];
             $missingTables = [];
             
             foreach ($requiredTables as $table) {
@@ -1059,44 +1297,215 @@ HTML;
                 }
             }
             
+            // 检查必要的配置文件
+            $configFiles = [
+                '.env' => '环境配置文件',
+                'composer.json' => 'Composer配置文件',
+                'vendor/autoload.php' => '依赖自动加载文件'
+            ];
+            
+            $missingConfigs = [];
+            foreach ($configFiles as $file => $name) {
+                if (!file_exists(PROJECT_ROOT . '/' . $file)) {
+                    $missingConfigs[] = $name;
+                }
+            }
+            
+            // 检查文件权限
+            $writeableDirs = [
+                'storage/logs',
+                'storage/sessions', 
+                'storage/cache',
+                'public/storage/uploads'
+            ];
+            
+            $permissionIssues = [];
+            foreach ($writeableDirs as $dir) {
+                $fullPath = PROJECT_ROOT . '/' . $dir;
+                if (!is_dir($fullPath)) {
+                    mkdir($fullPath, 0755, true);
+                }
+                if (!is_writable($fullPath)) {
+                    $permissionIssues[] = $dir;
+                }
+            }
+            
             // 生成检查报告
             $updateInfo[] = "当前版本: {$currentVersion}";
             $updateInfo[] = "检查时间: " . date('Y-m-d H:i:s');
             $updateInfo[] = "PHP版本: " . PHP_VERSION;
+            $updateInfo[] = "系统环境: " . PHP_OS;
             
-            if (empty($missingFiles) && empty($missingTables)) {
-                $updateInfo[] = "✅ 系统文件完整";
-                $updateInfo[] = "✅ 数据库结构正常";
-                $status = 'success';
-                $message = '系统检查完成，一切正常！';
+            $hasIssues = false;
+            
+            if (empty($missingFiles)) {
+                $updateInfo[] = "✅ 核心文件完整 (" . count($coreFiles) . "个)";
             } else {
-                if (!empty($missingFiles)) {
-                    $updateInfo[] = "❌ 缺失文件: " . implode(', ', $missingFiles);
-                }
-                if (!empty($missingTables)) {
-                    $updateInfo[] = "❌ 缺失数据表: " . implode(', ', $missingTables);
-                }
-                $status = 'error';
-                $message = '系统检查发现问题，请联系管理员';
+                $updateInfo[] = "❌ 缺失核心文件: " . implode(', ', $missingFiles);
+                $hasIssues = true;
             }
             
-            // 记录检查操作
+            if (empty($missingTables)) {
+                $updateInfo[] = "✅ 数据库结构正常 (" . count($requiredTables) . "个表)";
+            } else {
+                $updateInfo[] = "❌ 缺失数据表: " . implode(', ', $missingTables);
+                $hasIssues = true;
+            }
+            
+            if (empty($missingConfigs)) {
+                $updateInfo[] = "✅ 配置文件完整";
+            } else {
+                $updateInfo[] = "❌ 缺失配置文件: " . implode(', ', $missingConfigs);
+                $hasIssues = true;
+            }
+            
+            if (empty($permissionIssues)) {
+                $updateInfo[] = "✅ 目录权限正常";
+            } else {
+                $updateInfo[] = "⚠️ 目录权限问题: " . implode(', ', $permissionIssues);
+                $updateInfo[] = "建议执行: chmod 755 " . implode(' ', $permissionIssues);
+            }
+            
+            // 检查扩展
+            $requiredExtensions = ['pdo', 'pdo_mysql', 'json', 'mbstring', 'openssl'];
+            $missingExtensions = [];
+            foreach ($requiredExtensions as $ext) {
+                if (!extension_loaded($ext)) {
+                    $missingExtensions[] = $ext;
+                }
+            }
+            
+            if (empty($missingExtensions)) {
+                $updateInfo[] = "✅ PHP扩展完整";
+            } else {
+                $updateInfo[] = "❌ 缺失PHP扩展: " . implode(', ', $missingExtensions);
+                $hasIssues = true;
+            }
+            
+            // 检查内存限制
+            $memoryLimit = ini_get('memory_limit');
+            $updateInfo[] = "📊 内存限制: {$memoryLimit}";
+            
+            // 检查上传限制
+            $maxFileSize = ini_get('upload_max_filesize');
+            $updateInfo[] = "📊 上传限制: {$maxFileSize}";
+            
+            // 构建结构化的诊断结果
+            $diagnosisResult = [
+                'status' => $hasIssues ? 'warning' : 'success',
+                'message' => $hasIssues ? 
+                    '⚠️ 系统检查发现问题，请根据详细信息进行修复。' : 
+                    '🎉 系统检查完成，一切正常！当前系统运行状态良好。',
+                'version' => $currentVersion,
+                'checkTime' => date('Y-m-d H:i:s'),
+                'details' => $this->formatDiagnosisDetails($missingFiles, $missingTables, $missingConfigs, $permissionIssues, $missingExtensions, $memoryLimit, $maxFileSize)
+            ];
+            
+            // 记录诊断操作
             $this->adminLogModel->logAction(
-                '检查系统更新',
+                '系统诊断检查',
                 implode('; ', $updateInfo),
                 $request->getClientIp(),
                 $request->getUserAgent()
             );
 
-            return Response::redirect("/settings?{$status}=" . urlencode($message . "\n\n详细信息:\n" . implode("\n", $updateInfo)));
+            // 返回JSON响应
+            return new Response(json_encode($diagnosisResult), 200, [
+                'Content-Type' => 'application/json; charset=utf-8'
+            ]);
 
         } catch (\Exception $e) {
-            $this->logger->error('Check update error', [
+            $this->logger->error('System diagnosis error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/settings?error=' . urlencode('检查更新失败: ' . $e->getMessage()));
+            return new Response(json_encode([
+                'status' => 'error',
+                'message' => '系统诊断失败: ' . $e->getMessage(),
+                'version' => $_ENV['APP_VERSION'] ?? '2.0.0',
+                'checkTime' => date('Y-m-d H:i:s'),
+                'details' => []
+            ]), 500, [
+                'Content-Type' => 'application/json; charset=utf-8'
+            ]);
         }
+    }
+
+    /**
+     * 格式化诊断详情
+     */
+    private function formatDiagnosisDetails(array $missingFiles, array $missingTables, array $missingConfigs, array $permissionIssues, array $missingExtensions, string $memoryLimit, string $maxFileSize): array
+    {
+        $details = [];
+
+        // 核心文件检查
+        $details[] = [
+            'title' => '核心文件完整性',
+            'icon' => '📁',
+            'status' => empty($missingFiles) ? 'success' : 'warning',
+            'items' => empty($missingFiles) ? [
+                ['icon' => '✅', 'text' => '所有核心文件完整 (6个文件)']
+            ] : array_map(fn($file) => ['icon' => '❌', 'text' => "缺失文件: {$file}"], $missingFiles)
+        ];
+
+        // 数据库结构检查
+        $details[] = [
+            'title' => '数据库结构',
+            'icon' => '🗄️',
+            'status' => empty($missingTables) ? 'success' : 'warning',
+            'items' => empty($missingTables) ? [
+                ['icon' => '✅', 'text' => '数据库结构正常 (3个表)']
+            ] : array_map(fn($table) => ['icon' => '❌', 'text' => "缺失数据表: {$table}"], $missingTables)
+        ];
+
+        // 配置文件检查
+        $details[] = [
+            'title' => '配置文件',
+            'icon' => '⚙️',
+            'status' => empty($missingConfigs) ? 'success' : 'warning',
+            'items' => empty($missingConfigs) ? [
+                ['icon' => '✅', 'text' => '配置文件完整']
+            ] : array_map(fn($config) => ['icon' => '❌', 'text' => "缺失配置: {$config}"], $missingConfigs)
+        ];
+
+        // 目录权限检查
+        $details[] = [
+            'title' => '目录权限',
+            'icon' => '🔐',
+            'status' => empty($permissionIssues) ? 'success' : 'warning',
+            'items' => empty($permissionIssues) ? [
+                ['icon' => '✅', 'text' => '目录权限正常']
+            ] : array_merge(
+                [['icon' => '⚠️', 'text' => '以下目录权限有问题:']],
+                array_map(fn($dir) => ['icon' => '📁', 'text' => $dir], $permissionIssues),
+                [['icon' => '💡', 'text' => '建议执行: chmod 755 ' . implode(' ', $permissionIssues)]]
+            )
+        ];
+
+        // PHP扩展检查
+        $details[] = [
+            'title' => 'PHP扩展',
+            'icon' => '🔌',
+            'status' => empty($missingExtensions) ? 'success' : 'warning',
+            'items' => empty($missingExtensions) ? [
+                ['icon' => '✅', 'text' => 'PHP扩展完整']
+            ] : array_map(fn($ext) => ['icon' => '❌', 'text' => "缺失扩展: {$ext}"], $missingExtensions)
+        ];
+
+        // 系统信息
+        $details[] = [
+            'title' => '系统信息',
+            'icon' => '📊',
+            'status' => 'success',
+            'items' => [
+                ['icon' => '🖥️', 'text' => 'PHP版本: ' . PHP_VERSION],
+                ['icon' => '💾', 'text' => '内存限制: ' . $memoryLimit],
+                ['icon' => '📁', 'text' => '上传限制: ' . $maxFileSize],
+                ['icon' => '🌐', 'text' => '系统环境: ' . PHP_OS]
+            ]
+        ];
+
+        return $details;
     }
 
     /**
@@ -1105,10 +1514,66 @@ HTML;
     private function handleLogoUpload(array $file): ?string
     {
         try {
+            \error_log('Logo upload started: ' . \json_encode($file));
+            
+            // 验证文件上传状态
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                throw new \Exception('文件上传失败，错误代码: ' . $file['error']);
+            }
+            \error_log('Step 1: Upload status OK');
+
             // 验证文件类型
-            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
-            if (!in_array($file['type'], $allowedTypes)) {
-                throw new \Exception('只支持 JPG, PNG, GIF, SVG 格式的图片文件');
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'svg'];
+            $allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml'];
+            
+            // 检查文件扩展名
+            $extension = \strtolower(\pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($extension, $allowedExtensions)) {
+                throw new \Exception('只支持 JPG, PNG, GIF, SVG 格式的图片文件，当前文件扩展名: ' . $extension);
+            }
+            \error_log('Step 2: File extension validation OK: ' . $extension);
+            
+            // 尝试使用 fileinfo 扩展验证MIME类型（如果可用）
+            if (\extension_loaded('fileinfo')) {
+                \error_log('Step 3: Using fileinfo extension for MIME type validation');
+                $finfo = \finfo_open(\FILEINFO_MIME_TYPE);
+                if ($finfo) {
+                    $mimeType = \finfo_file($finfo, $file['tmp_name']);
+                    \finfo_close($finfo);
+                    \error_log('Step 4: Detected MIME type: ' . $mimeType);
+                    
+                    if (!in_array($mimeType, $allowedMimeTypes)) {
+                        throw new \Exception('文件类型验证失败，检测到的MIME类型: ' . $mimeType);
+                    }
+                    \error_log('Step 5: MIME type validation OK');
+                } else {
+                    \error_log('Step 3: Failed to open fileinfo resource, using fallback validation');
+                }
+            } else {
+                \error_log('Step 3: Fileinfo extension not available, using fallback validation');
+                // 备用验证：检查文件头部字节
+                $fileHandle = \fopen($file['tmp_name'], 'rb');
+                if ($fileHandle) {
+                    $header = \fread($fileHandle, 8);
+                    \fclose($fileHandle);
+                    
+                    // 简单的文件头检查
+                    $isValidImage = false;
+                    if (\substr($header, 0, 2) === "\xFF\xD8") { // JPEG
+                        $isValidImage = true;
+                    } elseif (\substr($header, 0, 8) === "\x89PNG\r\n\x1a\n") { // PNG
+                        $isValidImage = true;
+                    } elseif (\substr($header, 0, 6) === 'GIF87a' || \substr($header, 0, 6) === 'GIF89a') { // GIF
+                        $isValidImage = true;
+                    } elseif (\strpos($header, '<svg') !== false) { // SVG (简单检查)
+                        $isValidImage = true;
+                    }
+                    
+                    if (!$isValidImage) {
+                        throw new \Exception('文件头验证失败，文件可能不是有效的图片格式');
+                    }
+                    \error_log('Step 4: File header validation OK');
+                }
             }
 
             // 验证文件大小 (2MB max)
@@ -1116,32 +1581,103 @@ HTML;
             if ($file['size'] > $maxSize) {
                 throw new \Exception('文件大小不能超过 2MB');
             }
+            \error_log('Step 6: File size validation OK (' . $file['size'] . ' bytes)');
+
+            // 验证文件名
+            if (empty($file['name'])) {
+                throw new \Exception('文件名不能为空');
+            }
+            \error_log('Step 7: Filename validation OK');
 
             // 生成唯一文件名
-            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $filename = 'logo_' . time() . '_' . uniqid() . '.' . $extension;
+            $extension = \strtolower(\pathinfo($file['name'], PATHINFO_EXTENSION));
+            $filename = 'logo_' . \date('Ymd_His') . '_' . \uniqid() . '.' . $extension;
+            \error_log('Step 8: Generated filename: ' . $filename);
             
-            // 确保上传目录存在
-            $uploadDir = PROJECT_ROOT . '/storage/uploads/logos';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
+            // 确保上传目录存在（使用public目录，确保可以访问）
+            $uploadDir = PROJECT_ROOT . '/public/storage/uploads/logos';
+            \error_log('Step 9: Upload directory: ' . $uploadDir);
+            
+            if (!\is_dir($uploadDir)) {
+                \error_log('Step 10: Directory does not exist, creating...');
+                if (!\mkdir($uploadDir, 0755, true)) {
+                    throw new \Exception('无法创建上传目录: ' . $uploadDir);
+                }
+                \error_log('Step 11: Directory created successfully');
+            } else {
+                \error_log('Step 10: Directory already exists');
             }
+            
+            // 检查目录是否可写
+            if (!\is_writable($uploadDir)) {
+                throw new \Exception('上传目录不可写: ' . $uploadDir);
+            }
+            \error_log('Step 12: Directory is writable');
 
             // 移动文件到目标位置
             $targetPath = $uploadDir . '/' . $filename;
-            if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-                // 返回相对于网站根目录的路径
-                return '/storage/uploads/logos/' . $filename;
+            \error_log('Step 13: Target path: ' . $targetPath);
+            
+            if (\move_uploaded_file($file['tmp_name'], $targetPath)) {
+                \error_log('Step 14: File moved successfully');
+                // 删除旧的logo文件（如果存在）
+                $this->cleanupOldLogo();
+                
+                // 返回相对于public根目录的路径
+                $relativePath = '/storage/uploads/logos/' . $filename;
+                \error_log('Step 15: Returning path: ' . $relativePath);
+                return $relativePath;
             } else {
-                throw new \Exception('文件上传失败');
+                throw new \Exception('文件移动失败，请检查目录权限。源文件: ' . $file['tmp_name'] . ', 目标: ' . $targetPath);
             }
 
         } catch (\Exception $e) {
-            $this->logger->error('Logo upload error', [
+            // 将错误信息保存到全局变量，以便在主函数中获取
+            global $logoUploadError;
+            $logoUploadError = [
                 'error' => $e->getMessage(),
-                'file' => $file['name'] ?? 'unknown'
-            ]);
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+                'upload_dir' => PROJECT_ROOT . '/public/storage/uploads/logos',
+                'tmp_file_exists' => \file_exists($file['tmp_name']),
+                'upload_dir_exists' => \is_dir(PROJECT_ROOT . '/public/storage/uploads/logos'),
+                'upload_dir_writable' => \is_writable(PROJECT_ROOT . '/public/storage/uploads/logos')
+            ];
+            
+            \error_log('Logo upload error: ' . $e->getMessage());
+            \error_log('File info: ' . \json_encode($file));
+            
+            try {
+                $this->logger->error('Logo upload error', [
+                    'error' => $e->getMessage(),
+                    'file' => $file['name'] ?? 'unknown',
+                    'size' => $file['size'] ?? 0,
+                    'type' => $file['type'] ?? 'unknown'
+                ]);
+            } catch (\Exception $logError) {
+                // 忽略日志错误
+            }
+            
             return null;
+        }
+    }
+
+    /**
+     * 清理旧的logo文件
+     */
+    private function cleanupOldLogo(): void
+    {
+        try {
+            $currentLogo = $_ENV['WEBSITE_LOGO'] ?? '';
+            if (!empty($currentLogo) && \strpos($currentLogo, '/storage/uploads/logos/') === 0) {
+                $oldFile = PROJECT_ROOT . '/public' . $currentLogo;
+                if (\file_exists($oldFile)) {
+                    \unlink($oldFile);
+                }
+            }
+        } catch (\Exception $e) {
+            // 清理失败不影响主流程，只记录日志
+            $this->logger->warning('Failed to cleanup old logo', ['error' => $e->getMessage()]);
         }
     }
 }

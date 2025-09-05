@@ -38,7 +38,8 @@ class LicenseController
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
             $page = (int)($request->get('page', 1));
             $perPage = (int)($request->get('per_page', 20));
@@ -162,14 +163,22 @@ class LicenseController
             $brandHtml = '<i class="bi bi-shield-check"></i> ' . htmlspecialchars($systemName);
         }
         
-        // 处理成功/错误消息 - 使用现代化通知系统
+        // 处理成功/错误消息 - 使用SESSION Flash消息
         $notificationScript = '';
-        if (isset($_GET['success'])) {
-            $message = htmlspecialchars($_GET['success']);
-            $notificationScript = "<script>console.log('准备显示成功通知: {$message}'); document.addEventListener('DOMContentLoaded', function() { console.log('DOMContentLoaded触发，显示通知'); if (typeof notify !== 'undefined') { notify.success('{$message}'); } else { console.error('notify对象未定义！'); alert('调试：notify对象未定义，消息: {$message}'); } });</script>";
-        } elseif (isset($_GET['error'])) {
-            $message = htmlspecialchars($_GET['error']);
-            $notificationScript = "<script>console.log('准备显示错误通知: {$message}'); document.addEventListener('DOMContentLoaded', function() { console.log('DOMContentLoaded触发，显示通知'); if (typeof notify !== 'undefined') { notify.error('{$message}'); } else { console.error('notify对象未定义！'); alert('调试：notify对象未定义，消息: {$message}'); } });</script>";
+        
+        $successMessage = SessionManager::getFlashMessage('success');
+        $errorMessage = SessionManager::getFlashMessage('error');
+        $infoMessage = SessionManager::getFlashMessage('info');
+        
+        if ($successMessage) {
+            $message = htmlspecialchars($successMessage);
+            $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.success('{$message}'); });</script>";
+        } elseif ($errorMessage) {
+            $message = htmlspecialchars($errorMessage);
+            $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.error('{$message}'); });</script>";
+        } elseif ($infoMessage) {
+            $message = htmlspecialchars($infoMessage);
+            $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.info('{$message}'); });</script>";
         }
         $alertHtml = '';
 
@@ -540,23 +549,27 @@ HTML;
         try {
             // 检查管理员是否已登录
             if (!SessionManager::isLoggedIn()) {
-                return Response::redirect('/login?error=' . urlencode('请先登录'));
+                SessionManager::setFlashMessage('error', '请先登录');
+                return Response::redirect('/login');
             }
             $data = $request->all();
             
             if (!isset($data['count']) || !isset($data['duration_days'])) {
-                return Response::redirect('/licenses?error=' . urlencode('参数缺失'));
+                SessionManager::setFlashMessage('error', '参数缺失');
+                return Response::redirect('/licenses');
             }
 
             $count = (int)$data['count'];
             $durationDays = (int)$data['duration_days'];
 
             if ($count < 1 || $count > 100) {
-                return Response::redirect('/licenses?error=' . urlencode('数量必须在1-100之间'));
+                SessionManager::setFlashMessage('error', '数量必须在1-100之间');
+                return Response::redirect('/licenses');
             }
 
             if ($durationDays < 1 || $durationDays > 3650) {
-                return Response::redirect('/licenses?error=' . urlencode('有效期必须在1-3650天之间'));
+                SessionManager::setFlashMessage('error', '有效期必须在1-3650天之间');
+                return Response::redirect('/licenses');
             }
 
             // 获取自定义格式参数
@@ -567,7 +580,8 @@ HTML;
             // 验证自定义格式参数
             if ($prefix !== null || $length !== null || $charset !== null) {
                 if (empty($prefix) || $length < 8 || $length > 64 || empty($charset)) {
-                    return Response::redirect('/licenses?error=' . urlencode('自定义格式参数不正确'));
+                    SessionManager::setFlashMessage('error', '自定义格式参数不正确');
+                    return Response::redirect('/licenses');
                 }
             }
 
@@ -582,14 +596,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode("成功创建 {$count} 个许可证"));
+            SessionManager::setFlashMessage('success', "成功创建 {$count} 个许可证");
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Create license error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('创建许可证失败'));
+            SessionManager::setFlashMessage('error', '创建许可证失败');
+            return Response::redirect('/licenses');
         }
     }
 
@@ -604,7 +620,8 @@ HTML;
 
             $license = $this->licenseModel->find($id);
             if (!$license) {
-                return Response::redirect('/licenses?error=' . urlencode('许可证不存在'));
+                SessionManager::setFlashMessage('error', '许可证不存在');
+                return Response::redirect('/licenses');
             }
 
             $updateData = [];
@@ -613,7 +630,8 @@ HTML;
             }
 
             if (empty($updateData)) {
-                return Response::redirect('/licenses?error=' . urlencode('没有可更新的字段'));
+                SessionManager::setFlashMessage('error', '没有可更新的字段');
+                return Response::redirect('/licenses');
             }
 
             $this->licenseModel->update($id, $updateData);
@@ -626,14 +644,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode('许可证更新成功'));
+            SessionManager::setFlashMessage('success', '许可证更新成功');
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Edit license error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('更新许可证失败'));
+            SessionManager::setFlashMessage('error', '更新许可证失败');
+            return Response::redirect('/licenses');
         }
     }
 
@@ -647,7 +667,8 @@ HTML;
 
             $license = $this->licenseModel->find($id);
             if (!$license) {
-                return Response::redirect('/licenses?error=' . urlencode('许可证不存在'));
+                SessionManager::setFlashMessage('error', '许可证不存在');
+                return Response::redirect('/licenses');
             }
 
             $this->licenseModel->delete($id);
@@ -663,14 +684,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode('许可证删除成功'));
+            SessionManager::setFlashMessage('success', '许可证删除成功');
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Delete license error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('删除许可证失败'));
+            SessionManager::setFlashMessage('error', '删除许可证失败');
+            return Response::redirect('/licenses');
         }
     }
 
@@ -684,7 +707,8 @@ HTML;
 
             $license = $this->licenseModel->find($id);
             if (!$license) {
-                return Response::redirect('/licenses?error=' . urlencode('许可证不存在'));
+                SessionManager::setFlashMessage('error', '许可证不存在');
+                return Response::redirect('/licenses');
             }
 
             $this->licenseModel->disableLicense($id);
@@ -697,14 +721,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode('许可证已禁用'));
+            SessionManager::setFlashMessage('success', '许可证已禁用');
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Disable license error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('禁用许可证失败'));
+            SessionManager::setFlashMessage('error', '禁用许可证失败');
+            return Response::redirect('/licenses');
         }
     }
 
@@ -718,7 +744,8 @@ HTML;
 
             $license = $this->licenseModel->find($id);
             if (!$license) {
-                return Response::redirect('/licenses?error=' . urlencode('许可证不存在'));
+                SessionManager::setFlashMessage('error', '许可证不存在');
+                return Response::redirect('/licenses');
             }
 
             $this->licenseModel->enableLicense($id);
@@ -731,14 +758,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode('许可证已启用'));
+            SessionManager::setFlashMessage('success', '许可证已启用');
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Enable license error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('启用许可证失败'));
+            SessionManager::setFlashMessage('error', '启用许可证失败');
+            return Response::redirect('/licenses');
         }
     }
 
@@ -752,7 +781,8 @@ HTML;
 
             $license = $this->licenseModel->find($id);
             if (!$license) {
-                return Response::redirect('/licenses?error=' . urlencode('许可证不存在'));
+                SessionManager::setFlashMessage('error', '许可证不存在');
+                return Response::redirect('/licenses');
             }
 
             $this->licenseModel->unbindDevice($id);
@@ -765,14 +795,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode('设备解绑成功'));
+            SessionManager::setFlashMessage('success', '设备解绑成功');
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Unbind device error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('解绑设备失败'));
+            SessionManager::setFlashMessage('error', '解绑设备失败');
+            return Response::redirect('/licenses');
         }
     }
 
@@ -786,17 +818,20 @@ HTML;
             $data = $request->all();
 
             if (!isset($data['days']) || !is_numeric($data['days'])) {
-                return Response::redirect('/licenses?error=' . urlencode('延长时间参数错误'));
+                SessionManager::setFlashMessage('error', '延长时间参数错误');
+                return Response::redirect('/licenses');
             }
 
             $days = (int)$data['days'];
             if ($days < 1 || $days > 365) {
-                return Response::redirect('/licenses?error=' . urlencode('延长时间必须在1-365天之间'));
+                SessionManager::setFlashMessage('error', '延长时间必须在1-365天之间');
+                return Response::redirect('/licenses');
             }
 
             $license = $this->licenseModel->find($id);
             if (!$license) {
-                return Response::redirect('/licenses?error=' . urlencode('许可证不存在'));
+                SessionManager::setFlashMessage('error', '许可证不存在');
+                return Response::redirect('/licenses');
             }
 
             $this->licenseModel->extendExpiry($id, $days);
@@ -809,14 +844,16 @@ HTML;
                 $request->getUserAgent()
             );
 
-            return Response::redirect('/licenses?success=' . urlencode("许可证有效期已延长 {$days} 天"));
+            SessionManager::setFlashMessage('success', "许可证有效期已延长 {$days} 天");
+            return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
             $this->logger->error('Extend license error', [
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/licenses?error=' . urlencode('延长有效期失败'));
+            SessionManager::setFlashMessage('error', '延长有效期失败');
+            return Response::redirect('/licenses');
         }
     }
 }

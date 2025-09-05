@@ -177,7 +177,7 @@ class Application
         $this->router->post('/settings/change-password', 'AuthSystem\\Web\\Controller\\SettingsController@changePassword');
         $this->router->post('/settings/clear-cache', 'AuthSystem\\Web\\Controller\\SettingsController@clearCache');
         $this->router->get('/settings/export-data', 'AuthSystem\\Web\\Controller\\SettingsController@exportData');
-        $this->router->post('/settings/check-update', 'AuthSystem\\Web\\Controller\\SettingsController@checkUpdate');
+        $this->router->post('/settings/system-diagnosis', 'AuthSystem\\Web\\Controller\\SettingsController@systemDiagnosis');
     }
 
     /**

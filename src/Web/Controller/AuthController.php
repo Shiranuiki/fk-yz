@@ -55,7 +55,8 @@ class AuthController
             $data = $request->all();
             
             if (!isset($data['username']) || !isset($data['password'])) {
-                return $this->showLogin($request, '用户名和密码不能为空');
+                SessionManager::setFlashMessage('error', '用户名和密码不能为空');
+                return Response::redirect('/login');
             }
 
             $username = $data['username'];
@@ -73,7 +74,9 @@ class AuthController
                     $request->getUserAgent()
                 );
 
-                return Response::redirect('/login?error=' . urlencode('用户名或密码错误'));
+                // 使用Session存储错误消息，避免URL暴露错误信息
+                SessionManager::setFlashMessage('error', '用户名或密码错误');
+                return Response::redirect('/login');
             }
 
             // 更新最后登录时间
@@ -102,7 +105,8 @@ class AuthController
                 'error' => $e->getMessage(),
             ]);
 
-            return Response::redirect('/login?error=' . urlencode('登录时发生错误，请稍后再试'));
+            SessionManager::setFlashMessage('error', '登录时发生错误，请稍后再试');
+            return Response::redirect('/login');
         }
     }
 
@@ -148,14 +152,14 @@ class AuthController
      */
     private function renderLoginPage(string $error = ''): string
     {
-        // 处理URL参数中的错误消息 - 使用现代化通知系统
-        if (empty($error) && isset($_GET['error'])) {
-            $error = $_GET['error'];
+        // 处理Session中的Flash消息 - 使用现代化通知系统
+        if (empty($error)) {
+            $error = SessionManager::getFlashMessage('error');
         }
         
         $notificationScript = '';
         if (!empty($error)) {
-            $escapedError = htmlspecialchars($error);
+            $escapedError = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
             $notificationScript = "<script>document.addEventListener('DOMContentLoaded', function() { notify.error('{$escapedError}'); });</script>";
         }
         $errorHtml = '';
