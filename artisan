@@ -1,0 +1,150 @@
+#!/usr/bin/env php
+<?php
+/**
+ * 命令行工具
+ * 
+ * @author Auth System Team
+ * @version 2.0.0
+ */
+
+declare(strict_types=1);
+
+// 命令行工具错误报告设置
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+
+// 设置时区
+date_default_timezone_set('Asia/Shanghai');
+
+// 定义项目根目录
+define('PROJECT_ROOT', dirname(__FILE__));
+
+// 引入自动加载器
+require_once PROJECT_ROOT . '/vendor/autoload.php';
+
+// 加载环境变量
+$dotenv = Dotenv\Dotenv::createImmutable(PROJECT_ROOT);
+$dotenv->safeLoad();
+
+// 获取命令参数
+$command = $argv[1] ?? 'help';
+
+switch ($command) {
+    case 'migrate':
+        echo "运行数据库迁移...\n";
+        include PROJECT_ROOT . '/database/migrate.php';
+        break;
+        
+    case 'log:cleanup':
+        echo "清理旧日志...\n";
+        cleanupLogs();
+        break;
+        
+    case 'cache:clear':
+        echo "清理缓存...\n";
+        clearCache();
+        break;
+        
+    case 'key:generate':
+        echo "生成应用密钥...\n";
+        generateKey();
+        break;
+        
+    case 'help':
+    default:
+        showHelp();
+        break;
+}
+
+/**
+ * 清理旧日志
+ */
+function cleanupLogs(): void
+{
+    try {
+        $pdo = createDatabaseConnection();
+        
+        // 清理使用日志（保留90天）
+        $stmt = $pdo->prepare("DELETE FROM usage_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+        $usageCleaned = $stmt->execute() ? $stmt->rowCount() : 0;
+        
+        // 清理管理日志（保留180天）
+        $stmt = $pdo->prepare("DELETE FROM admin_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 180 DAY)");
+        $adminCleaned = $stmt->execute() ? $stmt->rowCount() : 0;
+        
+        echo "清理完成: 使用日志 {$usageCleaned} 条, 管理日志 {$adminCleaned} 条\n";
+        
+    } catch (Exception $e) {
+        echo "清理失败: " . $e->getMessage() . "\n";
+    }
+}
+
+/**
+ * 清理缓存
+ */
+function clearCache(): void
+{
+    $cacheDir = PROJECT_ROOT . '/storage/cache';
+    
+    if (is_dir($cacheDir)) {
+        $files = glob($cacheDir . '/*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+        echo "缓存清理完成\n";
+    } else {
+        echo "缓存目录不存在\n";
+    }
+}
+
+/**
+ * 生成应用密钥
+ */
+function generateKey(): void
+{
+    $key = bin2hex(random_bytes(32));
+    echo "生成的新密钥: {$key}\n";
+    echo "请将此密钥添加到 .env 文件的 JWT_SECRET 配置中\n";
+}
+
+/**
+ * 显示帮助信息
+ */
+function showHelp(): void
+{
+    echo "网络验证系统 - 命令行工具\n\n";
+    echo "可用命令:\n";
+    echo "  migrate        运行数据库迁移\n";
+    echo "  log:cleanup    清理旧日志\n";
+    echo "  cache:clear    清理缓存\n";
+    echo "  key:generate   生成应用密钥\n";
+    echo "  help           显示此帮助信息\n\n";
+    echo "使用方法: php artisan <command>\n";
+}
+
+/**
+ * 创建数据库连接
+ */
+function createDatabaseConnection(): PDO
+{
+    $dsn = sprintf(
+        '%s:host=%s;port=%s;dbname=%s;charset=%s',
+        $_ENV['DB_CONNECTION'] ?? 'mysql',
+        $_ENV['DB_HOST'] ?? 'localhost',
+        $_ENV['DB_PORT'] ?? '3306',
+        $_ENV['DB_DATABASE'] ?? 'auth_system',
+        $_ENV['DB_CHARSET'] ?? 'utf8mb4'
+    );
+
+    return new PDO(
+        $dsn,
+        $_ENV['DB_USERNAME'] ?? 'root',
+        $_ENV['DB_PASSWORD'] ?? '',
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+}
