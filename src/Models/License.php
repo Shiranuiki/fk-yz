@@ -361,7 +361,7 @@ class License extends BaseModel
     }
 
     /**
-     * 延长有效期
+     * 调整有效期（支持延长和缩短）
      */
     public function extendExpiry(int $id, int $days): bool
     {
@@ -370,7 +370,9 @@ class License extends BaseModel
             return false;
         }
         
-        $newExpiry = date('Y-m-d H:i:s', strtotime($license['expires_at'] . " +{$days} days"));
+        // 处理正数和负数天数
+        $operator = $days >= 0 ? '+' : '';
+        $newExpiry = date('Y-m-d H:i:s', strtotime($license['expires_at'] . " {$operator}{$days} days"));
         
         return $this->update($id, ['expires_at' => $newExpiry]);
     }

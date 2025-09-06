@@ -230,8 +230,8 @@ HTML;
             }
             
             $licensesHtml .= <<<HTML
-                            <button class="btn btn-outline-secondary" onclick="extendLicense({$license['id']})" title="延长有效期">
-                                <i class="bi bi-clock"></i>
+                            <button class="btn btn-outline-secondary" onclick="extendLicense({$license['id']})" title="调整有效期">
+                                <i class="bi bi-clock-history"></i>
                             </button>
                             <button class="btn btn-outline-danger" onclick="deleteLicense({$license['id']})" title="删除">
                                 <i class="bi bi-trash"></i>
@@ -440,12 +440,12 @@ HTML;
         }
         
         async function extendLicense(id) {
-            const days = await modernModal.prompt('请输入要延长的天数（1-365）:', '30', '延长有效期');
+            const days = await modernModal.prompt('请输入要调整的天数（-365到365，正数延长，负数减少）:', '30', '调整有效期');
             if (days === null) return;
             
             const daysNum = parseInt(days);
-            if (!daysNum || daysNum < 1 || daysNum > 365) {
-                await modernModal.alert('延长天数必须在1-365之间', '参数错误', 'error');
+            if (!daysNum || daysNum < -365 || daysNum > 365) {
+                await modernModal.alert('调整天数必须在-365到365之间（正数延长，负数减少）', '参数错误', 'error');
                 return;
             }
             
@@ -823,8 +823,8 @@ HTML;
             }
 
             $days = (int)$data['days'];
-            if ($days < 1 || $days > 365) {
-                SessionManager::setFlashMessage('error', '延长时间必须在1-365天之间');
+            if ($days < -365 || $days > 365 || $days == 0) {
+                SessionManager::setFlashMessage('error', '调整时间必须在-365到365天之间（不能为0）');
                 return Response::redirect('/licenses');
             }
 
@@ -837,14 +837,22 @@ HTML;
             $this->licenseModel->extendExpiry($id, $days);
 
             // 记录操作日志
+            $action = $days > 0 ? '延长有效期' : '缩短有效期';
+            $description = $days > 0 
+                ? "延长许可证 ID: {$id}，密钥: {$license['license_key']} 有效期 {$days} 天"
+                : "缩短许可证 ID: {$id}，密钥: {$license['license_key']} 有效期 " . abs($days) . " 天";
+            
             $this->adminLogModel->logAction(
-                '延长有效期',
-                "延长许可证 ID: {$id}，密钥: {$license['license_key']} 有效期 {$days} 天",
+                $action,
+                $description,
                 $request->getClientIp(),
                 $request->getUserAgent()
             );
 
-            SessionManager::setFlashMessage('success', "许可证有效期已延长 {$days} 天");
+            $message = $days > 0 
+                ? "许可证有效期已延长 {$days} 天" 
+                : "许可证有效期已缩短 " . abs($days) . " 天";
+            SessionManager::setFlashMessage('success', $message);
             return Response::redirect('/licenses');
 
         } catch (\Exception $e) {
